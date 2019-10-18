@@ -34,8 +34,6 @@ def git_test_blame(local_link, fixing_commit):
                 line_count = 0
                 start_line = 0
 
-                file_blame_info_cur = repo.git.blame(fixing_commit, file).splitlines()
-
                 # Catch error of new added file
                 try:
                     file_blame_info_pre = repo.git.blame(fixing_commit + "^", file).splitlines()
