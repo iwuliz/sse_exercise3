@@ -4,9 +4,88 @@
 from git import Repo, RemoteProgress
 import os
 
-# Function of git commands to identify VCC
-def git_identify(local_link, fixing_commit):
+# Analyse the summary line
+def analyse_diff_summary(sum_line):
+    sum_line = sum_line.split(' ')
+    sum_del = sum_line[1].split(",")
+    sum_add = sum_line[2].split(",")
+    start_del = -int(sum_del[0])
+    if len(sum_del) == 1:
+        length_del = 1
+    else:
+        length_del = int(sum_del[1])
+    start_add = int(sum_add[0])
+    if len(sum_add) == 1:
+        length_add = 1
+    else:
+        length_add = int(sum_add[1])
+    return (start_del, length_del, start_add, length_add)
 
+# find smallest cope for a line
+def find_enclosing_scope(line_num, file_blame_info_pre):
+    scope_sign = 0
+    scope_begin_line_num = line_num
+    scope_end_line_num = line_num + 1
+
+    # Find scope begin line number in the previous commit
+    for i in range(0, line_num):
+        blame_info = file_blame_info_pre[line_num - i - 1].split()
+        # print("blame_info: %s" % blame_info)
+        code = blame_info[6:len(blame_info)]
+        code = " ".join(code)
+        # print("Line %d: %s" % (line_num - i, code))
+        code = code[::-1]
+        for c in code:
+            if c == '}':
+                scope_sign -= 1
+            else:
+                if c == '{':
+                    scope_sign += 1
+            if scope_sign == 1:
+                scope_begin_line_num = line_num - i
+                break
+        # print("scope_sign = %d" % scope_sign)
+        if scope_sign == 1:
+            break
+        if i == line_num - 1:
+            return (0, 0)
+    # print("begin_line_num: %s" % scope_begin_line_num)
+
+    # Find scope end line number in the previous commit
+    for i in range(line_num + 1, len(file_blame_info_pre) + 1):
+        blame_info = file_blame_info_pre[i - 1].split()
+        code = blame_info[6:len(blame_info)]
+        code = " ".join(code)
+        # print("Line %d, Code content: %s" % (line_num-i,code))
+        for c in code:
+            if c == '}':
+                scope_sign -= 1
+            else:
+                if c == '{':
+                    scope_sign += 1
+            if scope_sign == 0:
+                scope_end_line_num = i
+                break
+        if scope_sign == 0:
+            break
+    return (scope_begin_line_num, scope_end_line_num)
+
+# find most recent commit for blames in a scope
+def find_most_recent_commit(blames_info):
+    latest = 0
+    target_commit = ""
+    for b in blames_info:
+        # print("blame: %s" % b )
+        b = b.split()
+        commit = b[0]
+        time = int(b[3])
+        if time > latest:
+            latest = time
+            target_commit = commit
+    return target_commit
+
+# Function to identify VCC
+def git_identify(local_link, fixing_commit):
     # Create repo object
     repo = Repo(local_link)
 
@@ -14,192 +93,66 @@ def git_identify(local_link, fixing_commit):
     repo.git.reset('--hard', fixing_commit)
 
     # Frequencies of commits are calculated during Question a and b
-    # Question a: identify the latest commit that modified each deleted line
     commits = []
     commits_count = []
 
-    for file in repo.git.show('--name-only', '--format=').splitlines(): # Operate all the affected files one by one
-        if file == "webapps/docs/changelog.xml" or file == "src/reference/asciidoc/whats-new.adoc": # Ignore log files
-            continue
+    # Operate all the affected files one by one
+    for file in repo.git.show('--name-only', '--format=').splitlines():
+        print("\nFile: %s" % file)
+        lines = repo.git.show('-U0', file).splitlines()
+
+        # Catch error of new added files
+        try:
+            file_blame_info_pre = repo.git.blame('-f', '-e', '-t', fixing_commit + "^", file).splitlines()
+        except:
+            print("%s is a new added file." % file)
         else:
-            print("\nFile: %s" % file)
-            lines = repo.git.show(file).splitlines()
-            line_count = 0
-            start_line = 0
+            # Operate for each summary line
+            for line in lines:
+                if line.startswith("@@"):
+                    print("\n%s" % ' '.join(line.split()[0:4]))
+                    (start_del, length_del, start_add, length_add) = analyse_diff_summary(line)
 
-            # Catch error of new added files
-            try:
-                file_blame_info_pre = repo.git.blame(fixing_commit + "^", file).splitlines()
-            except:
-                print("%s is a new added file." % file)
-            else:
-                # Find target commit of deleted lines
-                print("\n(a). Find latest modifying commit for each deleted lines")
-                for line in lines:
-                    if line.startswith("@@"):
-                        temp_start = line.split()
-                        temp_start = temp_start[1].split("-")
-                        temp_start = temp_start[1].split(",")
-                        start_line = int(temp_start[0])
-                        # print("start line: %d" % start_line)
-                        line_count = 0
-                    else:
-                        if start_line == 0:
-                            continue
+                    # Question a: identify the latest commit that modified each deleted line
+                    # For each deleted lines, find latest commit
+                    for i in range(start_del, start_del + length_del):
+                        print("Deleted line: %d" % i)
+                        blame_info = file_blame_info_pre[i - 1]
+                        target_commit = blame_info.split()[0]
+                        print("Target commit: %s" % target_commit)
+                        # Count commit
+                        if target_commit in commits:
+                            index = commits.index(target_commit)
+                            commits_count[index] += 1
                         else:
-                            if line.startswith("+"):
-                                continue
-                            if line.startswith("-"):
-                                line_num = int(start_line) + int(line_count)
-                                print("Deleted line: %d" % line_num)
-                                # For the deleted line, blame the previous commit
-                                blame_info = file_blame_info_pre[line_num-1]
-                                target_commit = blame_info.split()[0]
-                                print("Target commit for Line %d: %s" % (line_num,target_commit))
-                                if not target_commit in commits:
-                                    commits.append(target_commit)
-                                    commits_count.append(1)
-                                else:
-                                    index = commits.index(target_commit)
-                                    commits_count[index] += 1
-                                line_count += 1
-                            else:
-                                line_count += 1
+                            commits.append(target_commit)
+                            commits_count.append(1)
 
-                # Find target commit of added lines' smallest scope
-                # Find smallest scope for each added scope in current commit
-                print("\n(b)-1. Find smallest scope for each added lines")
-
-                # Find all added lines
-                # Find first closest existing line in previous commit for the added line
-                line_count = 0
-                start_line_cur = 0
-                start_line_pre = 0
-                closest_line_count = 0
-                closest_lines_num = set()
-                pre_line_type = 0 # 1="-", 2="+", 3=none
-
-                for line in lines:
-                    if line.startswith("@@"):
-                        start_line_cur = line.split()
-                        start_line_cur = start_line_cur[2].split("+")
-                        start_line_cur = start_line_cur[1].split(",")
-                        start_line_cur = int(start_line_cur[0])
-                        # print("start line for current commit: %d" % start_line_cur)
-
-                        start_line_pre = line.split()
-                        start_line_pre = start_line_pre[1].split("-")
-                        start_line_pre = start_line_pre[1].split(",")
-                        start_line_pre = int(start_line_pre[0])
-                        # print("start line for previous commit: %d" % start_line_cur)
-
-                        line_count = 0
-                        closest_line_count = 0
+                    # Question b: identify the latest commit that modified lines in the the smallest enclosing scope of each added line
+                    # For added lines, find the smallest enclosing scope
+                    for i in range(start_add, start_add + length_add):
+                        print("Added line: %d" % i)
+                    (scope_begin_line_num, scope_end_line_num) = find_enclosing_scope(start_del, file_blame_info_pre)
+                    if not scope_begin_line_num == 0:
+                        blames_info = file_blame_info_pre[scope_begin_line_num - 1: scope_end_line_num]
+                        target_commit = find_most_recent_commit(blames_info)
+                        print("scope in the previous commit: %d, %d" % (scope_begin_line_num, scope_end_line_num))
                     else:
-                        if start_line_cur == 0:
-                            continue
-                        else:
-                            if line.startswith("-"):
-                                # Find closest existing line num in previous commit
-                                closest_line_count += 1
-                                # print("closest_line_count++")
-                                pre_line_type = 1
-                                continue
-                            if line.startswith("+"):
-                                line_num = int(start_line_cur) + int(line_count)
-                                print("Added line: %d" % line_num)
-                                # added_lines.add(line)
-                                closest_existing_num = int(start_line_pre) + int(closest_line_count)
-                                if pre_line_type == 2:
-                                    continue
-                                if pre_line_type == 3:
-                                    closest_existing_num -=1
-                                    closest_line_count -=1
-                                closest_lines_num.add(closest_existing_num)
-                                print("Closest existing line: %d" % closest_existing_num)
-                                line_count += 1
-                                pre_line_type = 2
-                                # print("line_count++")
-                            else:
-                                line_count += 1
-                                closest_line_count += 1
-                                pre_line_type = 3
-                                # print("closest_line_count & line_count ++")
-                            # print("line_count = %d" % line_count)
-                            # print("closest_lines_count = %d" % closest_line_count)
+                        target_commit = 'skip'
+                        print("scope in the previous commit: whole file")
+                    print("Target commit: %s" % target_commit)
 
-                # Find smallest scope for each closest existing line for each added line
-                # Add lines in the smallest scope in set
-                lines_in_scope = set()
-
-                for line_num in closest_lines_num:
-                    scope_begin_signs = 0
-                    scope_end_signs = 0
-                    scope_begin_line_num = line_num-1
-                    scope_end_line_num = line_num+1
-
-                    # Find scope begin line number in the previous commit
-                    for i in range (1, line_num):
-                        blame_info = file_blame_info_pre[line_num-i-1].split()
-                        # print("blame_info: %s" % blame_info)
-                        code = blame_info[7:len(blame_info)]
-                        code = " ".join(code)
-                        # print("Line %d, Code content: %s" % (line_num-i,code))
-                        if i == line_num - 1:
-                            # scope_begin_line = code
-                            scope_begin_line_num = 1
-                        else:
-                            scope_begin_signs += code.count("{")
-                            scope_end_signs += code.count("}")
-                            if scope_begin_signs > scope_end_signs:
-                                scope_begin_line_num = line_num-i
-                                # print("scope_begin_line of line %d: %s" % (line_num,scope_begin_line))
-                                break
-                    # print("begin_line_num: %s" % scope_begin_line_num)
-
-                    # Find scope end line number in the previous commit
-                    if (scope_begin_line_num == 1):
-                        scope_end_line_num = len(file_blame_info_pre)
-                    else:
-                        for i in range (line_num, len(file_blame_info_pre)):
-                            blame_info = file_blame_info_pre[i-1].split()
-                            code = blame_info[7:len(blame_info)]
-                            code = " ".join(code)
-                            # print("Line %d, Code content: %s" % (line_num-i,code))
-                            if i == len(file_blame_info_pre)-1:
-                                # scope_begin_line = code
-                                scope_end_line_num = i
-                            else:
-                                scope_begin_signs += code.count("{")
-                                scope_end_signs += code.count("}")
-                                if scope_begin_signs == scope_end_signs:
-                                    scope_end_line_num = i
-                                    break
-                    print("scope for line %d in the previous commit: %d, %d" % (line_num, scope_begin_line_num, scope_end_line_num))
-                    for i in range(scope_begin_line_num, scope_end_line_num+1):
-                        if not i in lines_in_scope:
-                            lines_in_scope.add(i)
-
-                # Find target commit for each line of the identified scope in previous commit
-                print("\n(b)-2. Find target commit for each line in the scope")
-                for line_num in lines_in_scope:
-                    blame_info = file_blame_info_pre[line_num-1]
-                    # print("blame info: %s" % blame_info)
-                    target_commit = blame_info.split()[0]
-                    print("Target commit for line %d: %s" % (line_num, target_commit))
-                    if not target_commit in commits:
-                        commits.append(target_commit)
-                        commits_count.append(1)
-                    else:
+                    # Count commit * length_add
+                    if target_commit in commits:
                         index = commits.index(target_commit)
-                        commits_count[index] += 1
+                        commits_count[index] += length_add
+                    else:
+                        commits.append(target_commit)
+                        commits_count.append(length_add)
 
     # Find most frequently identified commit as the VCC
-    print("\n(c). Select VCC")
     print("All commits: %s" % commits)
     print("Count of commits: %s" % commits_count)
-
-    # Find most frequently identified commit as the VCC
     vcc = commits[commits_count.index(max(commits_count))]
     print("VCC is: %s" % vcc)
 
@@ -208,14 +161,13 @@ class Progress(RemoteProgress):
     def update(self, op_code, cur_count, max_count=None, message=''):
         print(self._cur_line)
 
-
 # Case 1
 remote_link = "https://github.com/spring-projects/spring-amqp"
 local_link = "../spring-amqp"
 if not os.path.isdir(local_link):
     Repo.clone_from(remote_link, local_link, progress=Progress())
 fixing_commit = "444b74e95bb299af5e23ebf006fbb45d574fb95"
-print("\nOperation of repo: %s\ncommit: %s" % (remote_link, fixing_commit))
+print("\nOperate repo: %s\ncommit: %s" % (remote_link, fixing_commit))
 git_identify(local_link, fixing_commit)
 
 # Case 2
@@ -224,7 +176,7 @@ local_link = "../pdfbox"
 if not os.path.isdir(local_link):
     Repo.clone_from(remote_link, local_link, progress=Progress())
 fixing_commit = "4fa98533358c106522cd1bfe4cd9be2532af852"
-print("\nOperation of repo: %s\ncommit: %s" % (remote_link, fixing_commit))
+print("\nOperate repo: %s\ncommit: %s" % (remote_link, fixing_commit))
 git_identify(local_link, fixing_commit)
 
 # Case 3
@@ -233,5 +185,5 @@ local_link = "../tomcat80"
 if not os.path.isdir(local_link):
     Repo.clone_from(remote_link, local_link, progress=Progress())
 fixing_commit = "ec10b8c785d1db91fe58946436f854dde04410fd"
-print("\nOperation of repo: %s\ncommit: %s" % (remote_link, fixing_commit))
+print("\nOperate repo: %s\ncommit: %s" % (remote_link, fixing_commit))
 git_identify(local_link, fixing_commit)

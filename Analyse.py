@@ -122,8 +122,8 @@ remote_link = "https://github.com/spring-projects/spring-amqp"
 local_link = "../spring-amqp"
 if not os.path.isdir(local_link):
     Repo.clone_from(remote_link, local_link, progress=Progress())
-fixing_commit = "3b605cddb"
-print("Analyses of repo: %s, commit: %s" % (remote_link, fixing_commit))
+fixing_commit = "127d6aabc"
+print("Analyse repo: %s, commit: %s" % (remote_link, fixing_commit))
 git_analyse(local_link, fixing_commit)
 
 # Case 2
@@ -132,7 +132,7 @@ local_link = "../pdfbox"
 if not os.path.isdir(local_link):
     Repo.clone_from(remote_link, local_link, progress=Progress())
 fixing_commit = "0043363995"
-print("\nAnalyses of repo: %s, commit: %s" % (remote_link, fixing_commit))
+print("\nAnalyse repo: %s, commit: %s" % (remote_link, fixing_commit))
 git_analyse(local_link, fixing_commit)
 
 # Case 3
@@ -140,6 +140,35 @@ remote_link = "https://github.com/apache/tomcat80"
 local_link = "../tomcat80"
 if not os.path.isdir(local_link):
     Repo.clone_from(remote_link, local_link, progress=Progress())
-fixing_commit = "550ee20ec1"
+fixing_commit = "85a546bbf3"
+print("\nAnalyse repo: %s, commit: %s" % (remote_link, fixing_commit))
+git_analyse(local_link, fixing_commit)
+
+'''
+# Case 4
+remote_link = "https://github.com/apache/tomcat"
+local_link = "../tomcat"
+if not os.path.isdir(local_link):
+    Repo.clone_from(remote_link, local_link, progress=Progress())
+fixing_commit = "e246e5fc13307da0a5d3bbf860d64d97be1c40f8"
+print("Analyses of repo: %s, commit: %s" % (remote_link, fixing_commit))
+git_analyse(local_link, fixing_commit)
+
+# Case 5
+remote_link = "https://github.com/apache/ignite"
+local_link = "../ignite"
+if not os.path.isdir(local_link):
+    Repo.clone_from(remote_link, local_link, progress=Progress())
+fixing_commit = "340569b8f4e14a4cb61a9407ed2d9aa4a20bdf49"
 print("\nAnalyses of repo: %s, commit: %s" % (remote_link, fixing_commit))
 git_analyse(local_link, fixing_commit)
+
+# Case 6
+remote_link = "https://github.com/apache/cxf"
+local_link = "../cxf"
+if not os.path.isdir(local_link):
+    Repo.clone_from(remote_link, local_link, progress=Progress())
+fixing_commit = "8f4799b5bc5ed0fe62d6e018c45d960e3652373e"
+print("\nAnalyses of repo: %s, commit: %s" % (remote_link, fixing_commit))
+git_analyse(local_link, fixing_commit)
+'''
