@@ -3,12 +3,12 @@ Secure Software Engineering - Exercise 3
 Documents list:
 
 1. Identify.py: The Python script to implement automatic identification of VCCs. 
-2. TestBlame.py: he Python script to compare different parameters in git.blame(). 
+2. TestBlame.py: The Python script to compare different parameters in git.blame(). 
 3. Analyse.py: The Python script to implement automatic analyses of VCCs. Reused of the same one of Exercise 2.
 4. Output_of_identify.rtf: The complete output of Identify.py.
 5. Output_of_identify.rtf: The complete output of Analyse.py.
 6. Ex3_Wuli.Zuo_a1785343.xlsx: The answers to the questions.
-7. SSE-Exercise_e_Report-Wuli.Zuo-a1785343.pdf - The report of Exercise 3, including detailed explanation of Python code and git commands and the result of different parameters.
+7. SSE-Exercise_3_Report-Wuli.Zuo-a1785343.pdf - The report of Exercise 3, including detailed explanation of Python code and git commands and the result of different parameters.
 
 Note: 
 
