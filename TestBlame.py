@@ -117,7 +117,7 @@ def git_test_blame(local_link, fixing_commit):
 
             # Catch error of new added files
             try:
-                file_blame_info_pre = repo.git.blame('-w', '-f', '-e', '-t', fixing_commit + "^", file).splitlines()
+                file_blame_info_pre = repo.git.blame(parameter, '-f', '-e', '-t', fixing_commit + "^", file).splitlines()
             except:
                 # print("%s is a new added file." % file)
                 continue
